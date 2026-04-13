@@ -3,42 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>S C A R A B 4030 Dashboard</title>
+    <title>S C A R A B — 4030 Dashboard</title>
     <style>
-        body { background: #0d1117; color: #e6edf3; font-family: -apple-system, sans-serif; text-align: center; padding: 20px; }
-        .container { max-width: 1000px; margin: auto; }
-        .controls { background: #161b22; padding: 20px; border-radius: 8px; border: 1px solid #30363d; margin-bottom: 25px; }
-        select, input { padding: 12px; background: #0d1117; color: white; border: 1px solid #30363d; border-radius: 6px; margin: 5px; width: 200px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; background: #161b22; border-radius: 8px; overflow: hidden; }
-        th, td { padding: 14px; border: 1px solid #30363d; text-align: left; }
-        th { background: #21262d; color: #58a6ff; font-size: 0.9rem; text-transform: uppercase; }
-        .fine-amt { color: #f85149; font-weight: bold; }
-        h2 { margin-top: 40px; color: #58a6ff; text-align: left; padding-left: 10px; border-left: 4px solid #58a6ff; }
-        .status-paid { color: #3fb950; font-weight: bold; }
-        .status-unpaid { color: #f85149; font-weight: bold; }
+        :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #e6edf3; --blue: #58a6ff; --red: #f85149; --green: #3fb950; }
+        body { background: var(--bg); color: var(--text); font-family: sans-serif; margin: 0; padding: 20px; text-align: center; }
+        .container { max-width: 900px; margin: auto; }
+        .header-card { background: var(--card); padding: 25px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 30px; }
+        h1 { margin: 0 0 15px 0; color: var(--blue); letter-spacing: 2px; }
+        
+        .controls { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+        select, input { padding: 12px; background: var(--bg); color: white; border: 1px solid var(--border); border-radius: 8px; outline: none; }
+        select { cursor: pointer; border-color: var(--blue); width: 150px; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; background: var(--card); border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+        th { background: #21262d; color: var(--blue); padding: 15px; text-align: left; font-size: 13px; text-transform: uppercase; }
+        td { padding: 14px; border-bottom: 1px solid var(--border); text-align: left; font-size: 14px; }
+        .fine-cell { color: var(--red); font-weight: bold; }
+        .status-paid { color: var(--green); font-weight: bold; }
+        .status-unpaid { color: var(--red); font-weight: bold; }
+        h2 { text-align: left; margin-top: 40px; color: var(--blue); border-left: 5px solid var(--blue); padding-left: 15px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>S C A R A B — 4030</h1>
-    
-    <div class="controls">
-        <input type="text" id="search" placeholder="Search Player Name..." onkeyup="filterData()">
-        <p style="font-size: 0.8rem; color: #8b949e; margin-top: 10px;">Data updates automatically from Google Sheets</p>
+    <div class="header-card">
+        <h1>S C A R A B — 4030</h1>
+        <div class="controls">
+            <select id="runSelect" onchange="loadData()">
+                <option value="Sheet1">MGE Run 1</option>
+                <option value="Sheet2">MGE Run 2</option>
+            </select>
+            <input type="text" id="search" placeholder="🔍 Search player..." onkeyup="filterData()">
+        </div>
+        <div id="status-msg" style="margin-top:10px; color:#8b949e;">Connecting...</div>
     </div>
-
-    <div id="loader">Connecting to database...</div>
 
     <h2>🏆 FIXED MGE RANKINGS</h2>
     <table>
         <thead>
-            <tr>
-                <th>Rank</th>
-                <th>Governor ID</th>
-                <th>In Game Name</th>
-                <th>Point Limit</th>
-            </tr>
+            <tr><th>Rank</th><th>Governor ID</th><th>In Game Name</th><th>Limit</th></tr>
         </thead>
         <tbody id="rankBody"></tbody>
     </table>
@@ -46,66 +50,66 @@
     <h2>⚠️ MGE OFFENDERS LIST</h2>
     <table>
         <thead>
-            <tr>
-                <th>In Game Name</th>
-                <th>Offense</th>
-                <th>Fine (M)</th>
-                <th>Status</th>
-            </tr>
+            <tr><th>In Game Name</th><th>Offense</th><th>Fine</th><th>Status</th></tr>
         </thead>
         <tbody id="fineBody"></tbody>
     </table>
 </div>
 
 <script>
-    // 1. REPLACE WITH YOUR SHEET IDs
-    const rankSheetID = "1WA0nc2tLoInF4yZOfCzZyH81qvdzH_yNN_bdnXd9ukA";
+    // PASTE YOUR IDs HERE
+    const rankSheetID = "1WA0nc2tLoInF4yZOfCzZyH81qvdzH_yNN_bdnXd9ukA"; 
     const fineSheetID = "1foNx05a6T7rkovzbxqzUV2F5DoP5IdmU_i9cajci9FE";
 
-    // 2. SET YOUR TAB NAMES (Usually "Sheet1" if you didn't rename them)
-    const rankTabName = "Sheet1";
-    const fineTabName = "Sheet1";
+    // Helper to find column names regardless of hidden spaces
+    function getVal(row, possibleNames) {
+        for (let name of possibleNames) {
+            if (row[name] !== undefined) return row[name];
+            if (row[name + " "] !== undefined) return row[name + " "];
+        }
+        return "";
+    }
 
     async function loadData() {
-        const loader = document.getElementById('loader');
-        
+        const status = document.getElementById('status-msg');
+        const selectedTab = document.getElementById('runSelect').value;
+        status.innerText = "Syncing " + selectedTab + "...";
+
         try {
             const [rankRes, fineRes] = await Promise.all([
-                fetch(`https://opensheet.elk.sh/${rankSheetID}/${rankTabName}`),
-                fetch(`https://opensheet.elk.sh/${fineSheetID}/${fineTabName}`)
+                fetch(`https://opensheet.elk.sh/${rankSheetID}/${selectedTab}`),
+                fetch(`https://opensheet.elk.sh/${fineSheetID}/${selectedTab}`)
             ]);
 
             const rankData = await rankRes.json();
             const fineData = await fineRes.json();
 
-            // RENDER RANKINGS (Headers: Rank, Governor ID, In Game Name, Point Limit)
+            // Rankings
             document.getElementById('rankBody').innerHTML = rankData.map(row => `
                 <tr>
-                    <td>${row["Rank"] || ""}</td>
-                    <td>${row["Governor ID"] || ""}</td>
-                    <td>${row["In Game Name"] || ""}</td>
-                    <td>${row["Point Limit"] || ""}</td>
+                    <td>${getVal(row, ["Rank"])}</td>
+                    <td>${getVal(row, ["Governor ID"])}</td>
+                    <td><b>${getVal(row, ["In Game Name"])}</b></td>
+                    <td>${getVal(row, ["Point Limit"])}</td>
                 </tr>
             `).join('');
 
-            // RENDER FINES (Headers: In Game Name , Stage Offends, Resource Fine (M), Status )
+            // Fines
             document.getElementById('fineBody').innerHTML = fineData.map(row => {
-                const status = (row["Status "] || "").toLowerCase();
-                const statusClass = status.includes("paid") && !status.includes("not") ? "status-paid" : "status-unpaid";
-                
+                const s = (getVal(row, ["Status"]) || "").toLowerCase();
+                const isPaid = s.includes("paid") && !s.includes("not");
                 return `
                 <tr>
-                    <td>${row["In Game Name "] || ""}</td>
-                    <td>${row["Stage Offends"] || ""}</td>
-                    <td class="fine-amt">${row["Resource Fine (M)"] || "0"}M</td>
-                    <td class="${statusClass}">${row["Status "] || ""}</td>
+                    <td><b>${getVal(row, ["In Game Name"])}</b></td>
+                    <td>${getVal(row, ["Stage Offends"])}</td>
+                    <td class="fine-cell">${getVal(row, ["Resource Fine (M)"])}M</td>
+                    <td class="${isPaid ? 'status-paid' : 'status-unpaid'}">${s.toUpperCase() || 'PENDING'}</td>
                 </tr>
             `}).join('');
 
-            loader.style.display = "none";
+            status.innerText = "✅ " + selectedTab + " Data Loaded";
         } catch (e) {
-            loader.innerText = "Error: Make sure Sheets are shared as 'Anyone with the link'";
-            loader.style.color = "#f85149";
+            status.innerText = "❌ Error loading " + selectedTab + ". Check your Sheet Tabs!";
         }
     }
 
@@ -116,12 +120,8 @@
         });
     }
 
-    // Initialize
-    if(rankSheetID !== "YOUR_CM_MGE_1_SHEET_ID") {
-        loadData();
-    } else {
-        document.getElementById('loader').innerText = "Enter your Sheet IDs in the code to begin.";
-    }
+    // Auto-load Run 1 on startup
+    loadData();
 </script>
 </body>
 </html>
