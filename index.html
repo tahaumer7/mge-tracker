@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MGE Tracker</title>
+<style>
+body {
+    background: #0d1117;
+    color: #e6edf3;
+    font-family: Arial;
+    text-align: center;
+}
+h1 { color: #58a6ff; }
+table {
+    margin: 20px auto;
+    border-collapse: collapse;
+    width: 80%;
+}
+th, td {
+    padding: 10px;
+    border: 1px solid #30363d;
+}
+th { background: #161b22; }
+input {
+    padding: 10px;
+    width: 250px;
+    margin-top: 20px;
+    background: #161b22;
+    color: white;
+    border: none;
+}
+.highlight { color: red; }
+</style>
+</head>
+
+<body>
+
+<h1>🏆 MGE Top 10</h1>
+<table id="top10"></table>
+
+<h1>⚠️ Fines Checker</h1>
+<input type="text" id="search" placeholder="Enter your name..." onkeyup="searchFine()">
+
+<table id="fines"></table>
+
+<script>
+const sheetID = "https://docs.google.com/spreadsheets/d/18-Vnv3j8FOAs8AvCI-aRHoa-o9ELI8v_DJNywGB9CPg/edit?usp=sharing";
+
+// Replace these with your actual sheet links
+const top10URL = https://opensheet.elk.sh/${sheetID}/Top10;
+const finesURL = https://opensheet.elk.sh/${sheetID}/Fines;
+
+async function loadTop10() {
+    const res = await fetch(top10URL);
+    const data = await res.json();
+
+    let table = "<tr><th>Rank</th><th>Name</th><th>Points</th></tr>";
+    data.forEach(player => {
+        table += `<tr>
+            <td>${player.Rank}</td>
+            <td>${player.Name}</td>
+            <td>${player.Points}</td>
+        </tr>`;
+    });
+
+    document.getElementById("top10").innerHTML = table;
+}
+
+async function loadFines() {
+    const res = await fetch(finesURL);
+    const data = await res.json();
+
+    let table = "<tr><th>Name</th><th>Fine</th><th>Reason</th></tr>";
+    data.forEach(player => {
+        table += `<tr>
+            <td>${player.Name}</td>
+            <td class="highlight">${player.Fine}</td>
+            <td>${player.Reason}</td>
+        </tr>`;
+    });
+
+    document.getElementById("fines").innerHTML = table;
+}
+
+function searchFine() {
+    let input = document.getElementById("search").value.toLowerCase();
+    let rows = document.querySelectorAll("#fines tr");
+
+    rows.forEach((row, index) => {
+        if (index === 0) return;
+        let name = row.cells[0].innerText.toLowerCase();
+        row.style.display = name.includes(input) ? "" : "none";
+    });
+}
+
+loadTop10();
+loadFines();
+</script>
+
+</body>
+</html>
