@@ -1,101 +1,127 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>MGE Tracker</title>
-<style>
-body {
-    background: #0d1117;
-    color: #e6edf3;
-    font-family: Arial;
-    text-align: center;
-}
-h1 { color: #58a6ff; }
-table {
-    margin: 20px auto;
-    border-collapse: collapse;
-    width: 80%;
-}
-th, td {
-    padding: 10px;
-    border: 1px solid #30363d;
-}
-th { background: #161b22; }
-input {
-    padding: 10px;
-    width: 250px;
-    margin-top: 20px;
-    background: #161b22;
-    color: white;
-    border: none;
-}
-.highlight { color: red; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>S C A R A B 4030 Dashboard</title>
+    <style>
+        body { background: #0d1117; color: #e6edf3; font-family: -apple-system, sans-serif; text-align: center; padding: 20px; }
+        .container { max-width: 1000px; margin: auto; }
+        .controls { background: #161b22; padding: 20px; border-radius: 8px; border: 1px solid #30363d; margin-bottom: 25px; }
+        select, input { padding: 12px; background: #0d1117; color: white; border: 1px solid #30363d; border-radius: 6px; margin: 5px; width: 200px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; background: #161b22; border-radius: 8px; overflow: hidden; }
+        th, td { padding: 14px; border: 1px solid #30363d; text-align: left; }
+        th { background: #21262d; color: #58a6ff; font-size: 0.9rem; text-transform: uppercase; }
+        .fine-amt { color: #f85149; font-weight: bold; }
+        h2 { margin-top: 40px; color: #58a6ff; text-align: left; padding-left: 10px; border-left: 4px solid #58a6ff; }
+        .status-paid { color: #3fb950; font-weight: bold; }
+        .status-unpaid { color: #f85149; font-weight: bold; }
+    </style>
 </head>
-
 <body>
 
-<h1>🏆 MGE Top 10</h1>
-<table id="top10"></table>
+<div class="container">
+    <h1>S C A R A B — 4030</h1>
+    
+    <div class="controls">
+        <input type="text" id="search" placeholder="Search Player Name..." onkeyup="filterData()">
+        <p style="font-size: 0.8rem; color: #8b949e; margin-top: 10px;">Data updates automatically from Google Sheets</p>
+    </div>
 
-<h1>⚠️ Fines Checker</h1>
-<input type="text" id="search" placeholder="Enter your name..." onkeyup="searchFine()">
+    <div id="loader">Connecting to database...</div>
 
-<table id="fines"></table>
+    <h2>🏆 FIXED MGE RANKINGS</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Rank</th>
+                <th>Governor ID</th>
+                <th>In Game Name</th>
+                <th>Point Limit</th>
+            </tr>
+        </thead>
+        <tbody id="rankBody"></tbody>
+    </table>
+
+    <h2>⚠️ MGE OFFENDERS LIST</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>In Game Name</th>
+                <th>Offense</th>
+                <th>Fine (M)</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody id="fineBody"></tbody>
+    </table>
+</div>
 
 <script>
-const sheetID = "https://docs.google.com/spreadsheets/d/18-Vnv3j8FOAs8AvCI-aRHoa-o9ELI8v_DJNywGB9CPg/edit?usp=sharing";
+    // 1. REPLACE WITH YOUR SHEET IDs
+    const rankSheetID = "1WA0nc2tLoInF4yZOfCzZyH81qvdzH_yNN_bdnXd9ukA";
+    const fineSheetID = "1foNx05a6T7rkovzbxqzUV2F5DoP5IdmU_i9cajci9FE";
 
-// Replace these with your actual sheet links
-const top10URL = https://opensheet.elk.sh/${sheetID}/Top10;
-const finesURL = https://opensheet.elk.sh/${sheetID}/Fines;
+    // 2. SET YOUR TAB NAMES (Usually "Sheet1" if you didn't rename them)
+    const rankTabName = "Sheet1";
+    const fineTabName = "Sheet1";
 
-async function loadTop10() {
-    const res = await fetch(top10URL);
-    const data = await res.json();
+    async function loadData() {
+        const loader = document.getElementById('loader');
+        
+        try {
+            const [rankRes, fineRes] = await Promise.all([
+                fetch(`https://opensheet.elk.sh/${rankSheetID}/${rankTabName}`),
+                fetch(`https://opensheet.elk.sh/${fineSheetID}/${fineTabName}`)
+            ]);
 
-    let table = "<tr><th>Rank</th><th>Name</th><th>Points</th></tr>";
-    data.forEach(player => {
-        table += `<tr>
-            <td>${player.Rank}</td>
-            <td>${player.Name}</td>
-            <td>${player.Points}</td>
-        </tr>`;
-    });
+            const rankData = await rankRes.json();
+            const fineData = await fineRes.json();
 
-    document.getElementById("top10").innerHTML = table;
-}
+            // RENDER RANKINGS (Headers: Rank, Governor ID, In Game Name, Point Limit)
+            document.getElementById('rankBody').innerHTML = rankData.map(row => `
+                <tr>
+                    <td>${row["Rank"] || ""}</td>
+                    <td>${row["Governor ID"] || ""}</td>
+                    <td>${row["In Game Name"] || ""}</td>
+                    <td>${row["Point Limit"] || ""}</td>
+                </tr>
+            `).join('');
 
-async function loadFines() {
-    const res = await fetch(finesURL);
-    const data = await res.json();
+            // RENDER FINES (Headers: In Game Name , Stage Offends, Resource Fine (M), Status )
+            document.getElementById('fineBody').innerHTML = fineData.map(row => {
+                const status = (row["Status "] || "").toLowerCase();
+                const statusClass = status.includes("paid") && !status.includes("not") ? "status-paid" : "status-unpaid";
+                
+                return `
+                <tr>
+                    <td>${row["In Game Name "] || ""}</td>
+                    <td>${row["Stage Offends"] || ""}</td>
+                    <td class="fine-amt">${row["Resource Fine (M)"] || "0"}M</td>
+                    <td class="${statusClass}">${row["Status "] || ""}</td>
+                </tr>
+            `}).join('');
 
-    let table = "<tr><th>Name</th><th>Fine</th><th>Reason</th></tr>";
-    data.forEach(player => {
-        table += `<tr>
-            <td>${player.Name}</td>
-            <td class="highlight">${player.Fine}</td>
-            <td>${player.Reason}</td>
-        </tr>`;
-    });
+            loader.style.display = "none";
+        } catch (e) {
+            loader.innerText = "Error: Make sure Sheets are shared as 'Anyone with the link'";
+            loader.style.color = "#f85149";
+        }
+    }
 
-    document.getElementById("fines").innerHTML = table;
-}
+    function filterData() {
+        const val = document.getElementById('search').value.toLowerCase();
+        document.querySelectorAll('tbody tr').forEach(tr => {
+            tr.style.display = tr.innerText.toLowerCase().includes(val) ? "" : "none";
+        });
+    }
 
-function searchFine() {
-    let input = document.getElementById("search").value.toLowerCase();
-    let rows = document.querySelectorAll("#fines tr");
-
-    rows.forEach((row, index) => {
-        if (index === 0) return;
-        let name = row.cells[0].innerText.toLowerCase();
-        row.style.display = name.includes(input) ? "" : "none";
-    });
-}
-
-loadTop10();
-loadFines();
+    // Initialize
+    if(rankSheetID !== "YOUR_CM_MGE_1_SHEET_ID") {
+        loadData();
+    } else {
+        document.getElementById('loader').innerText = "Enter your Sheet IDs in the code to begin.";
+    }
 </script>
-
 </body>
 </html>
